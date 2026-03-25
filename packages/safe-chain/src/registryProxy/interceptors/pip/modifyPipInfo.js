@@ -118,6 +118,10 @@ export function modifyPipInfoResponse(body, headers, url) {
       return true;
     });
 
+    if (json.files.length === originalLength) {
+      return body;
+    }
+
     // Also filter the versions field if present
     if (json.versions && Array.isArray(json.versions)) {
       // Build set of versions that still have files
@@ -131,7 +135,7 @@ export function modifyPipInfoResponse(body, headers, url) {
       );
     }
 
-    if (json.files.length !== originalLength && headers) {
+    if (headers) {
       delete headers["content-length"];
       delete headers["etag"];
       delete headers["last-modified"];
