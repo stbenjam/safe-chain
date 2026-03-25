@@ -150,6 +150,27 @@ export function getNpmMinimumPackageAgeExclusions() {
 }
 
 /**
+ * Gets the pip minimum package age exclusions from the config file
+ * @returns {string[]}
+ */
+export function getPipMinimumPackageAgeExclusions() {
+  const config = readConfigFile();
+
+  if (!config || !config.pip) {
+    return [];
+  }
+
+  const pipConfig = /** @type {SafeChainRegistryConfiguration} */ (config.pip);
+  const exclusions = pipConfig.minimumPackageAgeExclusions;
+
+  if (!Array.isArray(exclusions)) {
+    return [];
+  }
+
+  return exclusions.filter((item) => typeof item === "string");
+}
+
+/**
  * @param {import("../api/aikido.js").MalwarePackage[]} data
  * @param {string | number} version
  *

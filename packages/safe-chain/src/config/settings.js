@@ -198,3 +198,18 @@ export function getNpmMinimumPackageAgeExclusions() {
   const allExclusions = [...envExclusions, ...configExclusions];
   return [...new Set(allExclusions)];
 }
+
+/**
+ * Gets the pip minimum package age exclusions from both environment variable and config file (merged)
+ * @returns {string[]}
+ */
+export function getPipMinimumPackageAgeExclusions() {
+  const envExclusions = parseExclusionsFromEnv(
+    environmentVariables.getPipMinimumPackageAgeExclusions()
+  );
+  const configExclusions = configFile.getPipMinimumPackageAgeExclusions();
+
+  // Merge both sources and remove duplicates
+  const allExclusions = [...envExclusions, ...configExclusions];
+  return [...new Set(allExclusions)];
+}

@@ -1,6 +1,12 @@
-import { getPipCustomRegistries } from "../../config/settings.js";
+import { getPipCustomRegistries, skipMinimumPackageAge } from "../../config/settings.js";
 import { isMalwarePackage } from "../../scanning/audit/index.js";
 import { interceptRequests } from "./interceptorBuilder.js";
+import {
+  isSimpleApiUrl,
+  modifyPipInfoRequestHeaders,
+  modifyPipInfoResponse,
+} from "./pip/modifyPipInfo.js";
+import { parsePipFilename } from "./pip/parsePipFilename.js";
 
 const knownPipRegistries = [
   "files.pythonhosted.org",
@@ -47,6 +53,16 @@ function buildPipInterceptor(registry) {
     if (isMalicious) {
       reqContext.blockMalware(packageName, version);
     }
+
+    // Apply minimum package age filtering for Simple API index pages
+    if (!skipMinimumPackageAge() && isSimpleApiUrl(reqContext.targetUrl)) {
+      // Force PEP 691 JSON format so we get upload-time metadata inline
+      reqContext.modifyRequestHeaders(modifyPipInfoRequestHeaders);
+      const targetUrl = reqContext.targetUrl;
+      reqContext.modifyBody((body, headers) =>
+        modifyPipInfoResponse(body, headers, targetUrl)
+      );
+    }
   });
 }
 
@@ -77,56 +93,16 @@ function parsePipPackageFromUrl(url, registry) {
     return { packageName, version };
   }
 
-  const filename = decodeURIComponent(lastSegment);
+  const parsed = parsePipFilename(lastSegment);
+  packageName = parsed.name;
+  version = parsed.version;
 
-  // Parse Python package downloads from PyPI/pythonhosted.org
-  // Example wheel: https://files.pythonhosted.org/packages/xx/yy/requests-2.28.1-py3-none-any.whl
-  // Example sdist: https://files.pythonhosted.org/packages/xx/yy/requests-2.28.1.tar.gz
-
-  // Wheel (.whl) and Poetry's preflight metadata (.whl.metadata)
-  // Examples:
-  //   foo_bar-2.0.0-py3-none-any.whl
-  //   foo_bar-2.0.0-py3-none-any.whl.metadata
-  const wheelExtRe = /\.whl(?:\.metadata)?$/;
-  const wheelExtMatch = filename.match(wheelExtRe);
-  if (wheelExtMatch) {
-    const base = filename.replace(wheelExtRe, "");
-    const firstDash = base.indexOf("-");
-    if (firstDash > 0) {
-      const dist = base.slice(0, firstDash); // may contain underscores
-      const rest = base.slice(firstDash + 1); // version + the rest of tags
-      const secondDash = rest.indexOf("-");
-      const rawVersion = secondDash >= 0 ? rest.slice(0, secondDash) : rest;
-      packageName = dist;
-      version = rawVersion;
-      // Reject "latest" as it's a placeholder, not a real version
-      // When version is "latest", this signals the URL doesn't contain actual version info
-      // Returning undefined allows the request (see registryProxy.js isAllowedUrl)
-      if (version === "latest" || !packageName || !version) {
-        return { packageName: undefined, version: undefined };
-      }
-      return { packageName, version };
-    }
+  // Reject "latest" as it's a placeholder, not a real version
+  // When version is "latest", this signals the URL doesn't contain actual version info
+  // Returning undefined allows the request (see registryProxy.js isAllowedUrl)
+  if (!packageName || !version || version === "latest") {
+    return { packageName: undefined, version: undefined };
   }
 
-  // Source dist (sdist) and potential metadata sidecars (e.g., .tar.gz.metadata)
-  const sdistExtWithMetadataRe = /\.(tar\.gz|zip|tar\.bz2|tar\.xz)(\.metadata)?$/i;
-  const sdistExtMatch = filename.match(sdistExtWithMetadataRe);
-  if (sdistExtMatch) {
-    const base = filename.replace(sdistExtWithMetadataRe, "");
-    const lastDash = base.lastIndexOf("-");
-    if (lastDash > 0 && lastDash < base.length - 1) {
-      packageName = base.slice(0, lastDash);
-      version = base.slice(lastDash + 1);
-      // Reject "latest" as it's a placeholder, not a real version
-      // When version is "latest", this signals the URL doesn't contain actual version info
-      // Returning undefined allows the request (see registryProxy.js isAllowedUrl)
-      if (version === "latest" || !packageName || !version) {
-        return { packageName: undefined, version: undefined };
-      }
-      return { packageName, version };
-    }
-  }
-  // Unknown file type or invalid
-  return { packageName: undefined, version: undefined };
+  return { packageName, version };
 }
