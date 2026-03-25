@@ -9,6 +9,14 @@ describe("pipInterceptor custom registries", async () => {
   mock.module("../../config/settings.js", {
     namedExports: {
       getPipCustomRegistries: () => customRegistries,
+      skipMinimumPackageAge: () => true,
+      getMinimumPackageAgeHours: () => 24,
+      getPipMinimumPackageAgeExclusions: () => [],
+      getPipProvenanceMode: () => "off",
+      getPipProvenanceExclusions: () => [],
+      getLoggingLevel: () => "default",
+      LOGGING_SILENT: "silent",
+      LOGGING_VERBOSE: "verbose",
     },
   });
 

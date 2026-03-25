@@ -111,11 +111,11 @@ safe-chain --version
 
 The Aikido Safe Chain works by running a lightweight proxy server that intercepts package downloads from the npm registry and PyPI. When you run npm, npx, yarn, pnpm, pnpx, bun, bunx, pip, pip3, uv, poetry or pipx commands, all package downloads are routed through this local proxy, which verifies packages in real-time against **[Aikido Intel - Open Sources Threat Intelligence](https://intel.aikido.dev/?tab=malware)**. If malware is detected in any package (including deep dependencies), the proxy blocks the download before the malicious code reaches your machine.
 
-### Minimum package age (npm only)
+### Minimum package age
 
-For npm packages, Safe Chain temporarily suppresses packages published within the last 24 hours (by default) until they have been validated against malware. This provides an additional security layer during the critical period when newly published packages are most vulnerable to containing undetected threats. You can configure this threshold or bypass this protection entirely - see the [Minimum Package Age Configuration](#minimum-package-age) section below.
+Safe Chain temporarily suppresses packages published within the last 24 hours (by default) until they have been validated against malware. This provides an additional security layer during the critical period when newly published packages are most vulnerable to containing undetected threats. You can configure this threshold or bypass this protection entirely - see the [Minimum Package Age Configuration](#minimum-package-age) section below.
 
-⚠️ This feature **only applies to npm-based package managers** (npm, npx, yarn, pnpm, pnpx, bun, bunx) and does not apply to Python package managers (uv, pip, pip3, poetry, pipx).
+This feature applies to both npm-based package managers (npm, npx, yarn, pnpm, pnpx, bun, bunx) and Python package managers (pip, pip3, uv, poetry, pipx).
 
 ### Shell Integration
 
@@ -212,7 +212,9 @@ You can set the minimum package age through multiple sources (in order of priori
 
 ### Excluding Packages
 
-Exclude trusted packages from minimum age filtering via environment variable or config file (both are merged). Use `@scope/*` to trust all packages from an organization:
+Exclude trusted packages from minimum age filtering via environment variable or config file (both are merged). Use `@scope/*` to trust all packages from an npm organization:
+
+**npm:**
 
 ```shell
 export SAFE_CHAIN_NPM_MINIMUM_PACKAGE_AGE_EXCLUSIONS="@aikidosec/*"
@@ -222,6 +224,67 @@ export SAFE_CHAIN_NPM_MINIMUM_PACKAGE_AGE_EXCLUSIONS="@aikidosec/*"
 {
   "npm": {
     "minimumPackageAgeExclusions": ["@aikidosec/*"]
+  }
+}
+```
+
+**pip:**
+
+```shell
+export SAFE_CHAIN_PIP_MINIMUM_PACKAGE_AGE_EXCLUSIONS="requests,django"
+```
+
+```json
+{
+  "pip": {
+    "minimumPackageAgeExclusions": ["requests", "django"]
+  }
+}
+```
+
+### Trusted Publishing Provenance (pip only)
+
+For PyPI packages, Safe Chain can enforce [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) provenance. Packages published via Trusted Publishing use OIDC authentication from CI/CD systems (e.g. GitHub Actions) rather than API tokens, providing a verifiable link between the package and its source repository.
+
+Three modes are available:
+
+| Mode | Behavior |
+|------|----------|
+| `default` | If a project has **any** release with provenance, reject releases without it. Detects compromised publishing pipelines. |
+| `strict` | Reject **all** releases without provenance, regardless of history. |
+| `off` | No provenance checking. |
+
+The default mode is `default`.
+
+**Environment Variable:**
+
+```shell
+export SAFE_CHAIN_PIP_PROVENANCE_MODE="strict"
+```
+
+**Config File** (`~/.safe-chain/config.json`):
+
+```json
+{
+  "pip": {
+    "provenanceMode": "strict"
+  }
+}
+```
+
+To exclude specific packages from provenance checks (e.g. packages that legitimately lack provenance):
+
+```shell
+export SAFE_CHAIN_PIP_PROVENANCE_EXCLUSIONS="legacy-internal-pkg,old-tool"
+```
+
+Or in the config file:
+
+```json
+{
+  "pip": {
+    "provenanceMode": "strict",
+    "provenanceExclusions": ["legacy-internal-pkg", "old-tool"]
   }
 }
 ```

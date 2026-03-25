@@ -198,3 +198,57 @@ export function getNpmMinimumPackageAgeExclusions() {
   const allExclusions = [...envExclusions, ...configExclusions];
   return [...new Set(allExclusions)];
 }
+
+/**
+ * Gets the pip minimum package age exclusions from both environment variable and config file (merged)
+ * @returns {string[]}
+ */
+export function getPipMinimumPackageAgeExclusions() {
+  const envExclusions = parseExclusionsFromEnv(
+    environmentVariables.getPipMinimumPackageAgeExclusions()
+  );
+  const configExclusions = configFile.getPipMinimumPackageAgeExclusions();
+
+  // Merge both sources and remove duplicates
+  const allExclusions = [...envExclusions, ...configExclusions];
+  return [...new Set(allExclusions)];
+}
+
+const PROVENANCE_MODES = ["default", "strict", "off"];
+const defaultProvenanceMode = "default";
+
+/**
+ * Gets the pip provenance mode from environment variable or config file
+ * Valid values: "default", "strict", "off"
+ * @returns {string}
+ */
+export function getPipProvenanceMode() {
+  // Priority 1: Environment variable
+  const envValue = environmentVariables.getPipProvenanceMode()?.toLowerCase();
+  if (envValue && PROVENANCE_MODES.includes(envValue)) {
+    return envValue;
+  }
+
+  // Priority 2: Config file
+  const configValue = configFile.getPipProvenanceMode()?.toLowerCase();
+  if (configValue && PROVENANCE_MODES.includes(configValue)) {
+    return configValue;
+  }
+
+  return defaultProvenanceMode;
+}
+
+/**
+ * Gets the pip provenance exclusions from both environment variable and config file (merged)
+ * @returns {string[]}
+ */
+export function getPipProvenanceExclusions() {
+  const envExclusions = parseExclusionsFromEnv(
+    environmentVariables.getPipProvenanceExclusions()
+  );
+  const configExclusions = configFile.getPipProvenanceExclusions();
+
+  // Merge both sources and remove duplicates
+  const allExclusions = [...envExclusions, ...configExclusions];
+  return [...new Set(allExclusions)];
+}

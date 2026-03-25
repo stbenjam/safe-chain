@@ -44,3 +44,32 @@ export function getLoggingLevel() {
 export function getNpmMinimumPackageAgeExclusions() {
   return process.env.SAFE_CHAIN_NPM_MINIMUM_PACKAGE_AGE_EXCLUSIONS;
 }
+
+/**
+ * Gets the pip minimum package age exclusions from environment variable
+ * Expected format: comma-separated list of package names
+ * Example: "requests,django,flask"
+ * @returns {string | undefined}
+ */
+export function getPipMinimumPackageAgeExclusions() {
+  return process.env.SAFE_CHAIN_PIP_MINIMUM_PACKAGE_AGE_EXCLUSIONS;
+}
+
+/**
+ * Gets the pip provenance mode from environment variable
+ * Valid values: "default", "strict", "off"
+ * @returns {string | undefined}
+ */
+export function getPipProvenanceMode() {
+  return process.env.SAFE_CHAIN_PIP_PROVENANCE_MODE;
+}
+
+/**
+ * Gets the pip provenance exclusions from environment variable
+ * Expected format: comma-separated list of package names
+ * Example: "requests,django"
+ * @returns {string | undefined}
+ */
+export function getPipProvenanceExclusions() {
+  return process.env.SAFE_CHAIN_PIP_PROVENANCE_EXCLUSIONS;
+}

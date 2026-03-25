@@ -219,6 +219,13 @@ function createProxyRequest(hostname, port, req, res, requestHandler) {
           buffer = gzipSync(buffer);
         }
 
+        // Update content-length to match the buffer size, which may differ
+        // from the original if the body was modified or re-compressed with
+        // different gzip settings than the upstream server used
+        if (headers["content-length"]) {
+          headers["content-length"] = buffer.length;
+        }
+
         res.writeHead(statusCode, headers);
         res.end(buffer);
       });

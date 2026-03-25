@@ -17,6 +17,8 @@ import { getEcoSystem } from "./settings.js";
  * We cannot trust the input and should add the necessary validations.
  * @property {unknown | string[]} customRegistries
  * @property {unknown | string[]} minimumPackageAgeExclusions
+ * @property {unknown | string} provenanceMode
+ * @property {unknown | string[]} provenanceExclusions
  */
 
 /**
@@ -141,6 +143,69 @@ export function getNpmMinimumPackageAgeExclusions() {
 
   const npmConfig = /** @type {SafeChainRegistryConfiguration} */ (config.npm);
   const exclusions = npmConfig.minimumPackageAgeExclusions;
+
+  if (!Array.isArray(exclusions)) {
+    return [];
+  }
+
+  return exclusions.filter((item) => typeof item === "string");
+}
+
+/**
+ * Gets the pip minimum package age exclusions from the config file
+ * @returns {string[]}
+ */
+export function getPipMinimumPackageAgeExclusions() {
+  const config = readConfigFile();
+
+  if (!config || !config.pip) {
+    return [];
+  }
+
+  const pipConfig = /** @type {SafeChainRegistryConfiguration} */ (config.pip);
+  const exclusions = pipConfig.minimumPackageAgeExclusions;
+
+  if (!Array.isArray(exclusions)) {
+    return [];
+  }
+
+  return exclusions.filter((item) => typeof item === "string");
+}
+
+/**
+ * Gets the pip provenance mode from the config file
+ * @returns {string | undefined}
+ */
+export function getPipProvenanceMode() {
+  const config = readConfigFile();
+
+  if (!config || !config.pip) {
+    return undefined;
+  }
+
+  const pipConfig = /** @type {SafeChainRegistryConfiguration} */ (config.pip);
+  const mode = pipConfig.provenanceMode;
+
+  if (typeof mode !== "string") {
+    return undefined;
+  }
+
+  return mode;
+}
+
+/**
+ * Gets the pip provenance exclusions from the config file
+ * @returns {string[]}
+ */
+export function getPipProvenanceExclusions() {
+  const config = readConfigFile();
+
+  if (!config || !config.pip) {
+    return [];
+  }
+
+  const pipConfig = /** @type {SafeChainRegistryConfiguration} */ (config.pip);
+  const exclusions = pipConfig.provenanceExclusions;
 
   if (!Array.isArray(exclusions)) {
     return [];
