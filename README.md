@@ -242,6 +242,53 @@ export SAFE_CHAIN_PIP_MINIMUM_PACKAGE_AGE_EXCLUSIONS="requests,django"
 }
 ```
 
+### Trusted Publishing Provenance (pip only)
+
+For PyPI packages, Safe Chain can enforce [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) provenance. Packages published via Trusted Publishing use OIDC authentication from CI/CD systems (e.g. GitHub Actions) rather than API tokens, providing a verifiable link between the package and its source repository.
+
+Three modes are available:
+
+| Mode | Behavior |
+|------|----------|
+| `default` | If a project has **any** release with provenance, reject releases without it. Detects compromised publishing pipelines. |
+| `strict` | Reject **all** releases without provenance, regardless of history. |
+| `off` | No provenance checking. |
+
+The default mode is `default`.
+
+**Environment Variable:**
+
+```shell
+export SAFE_CHAIN_PIP_PROVENANCE_MODE="strict"
+```
+
+**Config File** (`~/.safe-chain/config.json`):
+
+```json
+{
+  "pip": {
+    "provenanceMode": "strict"
+  }
+}
+```
+
+To exclude specific packages from provenance checks (e.g. packages that legitimately lack provenance):
+
+```shell
+export SAFE_CHAIN_PIP_PROVENANCE_EXCLUSIONS="legacy-internal-pkg,old-tool"
+```
+
+Or in the config file:
+
+```json
+{
+  "pip": {
+    "provenanceMode": "strict",
+    "provenanceExclusions": ["legacy-internal-pkg", "old-tool"]
+  }
+}
+```
+
 ## Custom Registries
 
 Configure Safe Chain to scan packages from custom or private registries.

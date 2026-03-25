@@ -5,6 +5,8 @@ describe("pipInterceptor minimum package age", async () => {
   let minimumPackageAgeSettings = 48;
   let skipMinimumPackageAgeSetting = false;
   let minimumPackageAgeExclusionsSetting = [];
+  let provenanceModeSetting = "off";
+  let provenanceExclusionsSetting = [];
 
   mock.module("../../../config/settings.js", {
     namedExports: {
@@ -12,6 +14,8 @@ describe("pipInterceptor minimum package age", async () => {
       skipMinimumPackageAge: () => skipMinimumPackageAgeSetting,
       getPipCustomRegistries: () => [],
       getPipMinimumPackageAgeExclusions: () => minimumPackageAgeExclusionsSetting,
+      getPipProvenanceMode: () => provenanceModeSetting,
+      getPipProvenanceExclusions: () => provenanceExclusionsSetting,
     },
   });
 
@@ -290,6 +294,207 @@ describe("pipInterceptor minimum package age", async () => {
     assert.equal(headers["content-length"], undefined);
   });
 
+  // --- Provenance mode: "off" ---
+
+  it("Should not filter by provenance when mode is off", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "off";
+
+    const json = buildSimpleJson("requests", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: "https://pypi.org/integrity/requests/1.0.0/provenance" },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: null },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/requests/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.ok(parsed.files.some((f) => f.filename.includes("1.0.0")));
+    assert.ok(parsed.files.some((f) => f.filename.includes("2.0.0")));
+  });
+
+  // --- Provenance mode: "default" ---
+
+  it("Should remove files without provenance when project has provenance history (default mode)", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "default";
+
+    const json = buildSimpleJson("requests", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: "https://pypi.org/integrity/requests/1.0.0/provenance" },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: "https://pypi.org/integrity/requests/2.0.0/provenance" },
+      { version: "3.0.0", uploadTime: getDate(-72), provenance: null },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/requests/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.ok(parsed.files.some((f) => f.filename.includes("1.0.0")));
+    assert.ok(parsed.files.some((f) => f.filename.includes("2.0.0")));
+    assert.ok(!parsed.files.some((f) => f.filename.includes("3.0.0")));
+  });
+
+  it("Should allow all files when no provenance history exists (default mode)", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "default";
+
+    const json = buildSimpleJson("old-package", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: null },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: null },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/old-package/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.ok(parsed.files.some((f) => f.filename.includes("1.0.0")));
+    assert.ok(parsed.files.some((f) => f.filename.includes("2.0.0")));
+  });
+
+  it("Should also update versions list when provenance filtering removes files (default mode)", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "default";
+
+    const json = buildSimpleJson("requests", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: "https://pypi.org/integrity/requests/1.0.0/provenance" },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: null },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/requests/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.deepEqual(parsed.versions, ["1.0.0"]);
+  });
+
+  // --- Provenance mode: "strict" ---
+
+  it("Should remove all files without provenance in strict mode", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "strict";
+
+    const json = buildSimpleJson("new-package", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: null },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: null },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/new-package/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.equal(parsed.files.length, 0);
+    assert.deepEqual(parsed.versions, []);
+  });
+
+  it("Should keep files with provenance in strict mode", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "strict";
+
+    const json = buildSimpleJson("sigstore", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: "https://pypi.org/integrity/sigstore/1.0.0/provenance" },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: null },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/sigstore/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.ok(parsed.files.some((f) => f.filename.includes("1.0.0")));
+    assert.ok(!parsed.files.some((f) => f.filename.includes("2.0.0")));
+  });
+
+  // --- Provenance exclusions ---
+
+  it("Should skip provenance filtering for excluded packages", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "strict";
+    provenanceExclusionsSetting = ["legacy-package"];
+
+    const json = buildSimpleJson("legacy-package", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: null },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: null },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/legacy-package/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.ok(parsed.files.some((f) => f.filename.includes("1.0.0")));
+    assert.ok(parsed.files.some((f) => f.filename.includes("2.0.0")));
+  });
+
+  it("Should still filter provenance for packages not in exclusion list", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "strict";
+    provenanceExclusionsSetting = ["other-package"];
+
+    const json = buildSimpleJson("requests", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: null },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: "https://pypi.org/integrity/requests/2.0.0/provenance" },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/requests/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.ok(!parsed.files.some((f) => f.filename.includes("1.0.0")));
+    assert.ok(parsed.files.some((f) => f.filename.includes("2.0.0")));
+  });
+
+  it("Should handle PEP 503 normalized names in provenance exclusion matching", async () => {
+    minimumPackageAgeSettings = 0;
+    skipMinimumPackageAgeSetting = false;
+    minimumPackageAgeExclusionsSetting = [];
+    provenanceModeSetting = "default";
+    provenanceExclusionsSetting = ["my_legacy_pkg"];
+
+    const json = buildSimpleJson("my-legacy-pkg", [
+      { version: "1.0.0", uploadTime: getDate(-72), provenance: "https://pypi.org/integrity/my-legacy-pkg/1.0.0/provenance", namePrefix: "my_legacy_pkg" },
+      { version: "2.0.0", uploadTime: getDate(-72), provenance: null, namePrefix: "my_legacy_pkg" },
+    ]);
+
+    const result = await runModifyPipInfoRequest(
+      "https://pypi.org/simple/my-legacy-pkg/",
+      json
+    );
+
+    const parsed = JSON.parse(result);
+    assert.ok(parsed.files.some((f) => f.filename.includes("1.0.0")));
+    assert.ok(parsed.files.some((f) => f.filename.includes("2.0.0")));
+  });
+
   // --- Helper functions ---
 
   function getDate(plusHours) {
@@ -304,16 +509,19 @@ describe("pipInterceptor minimum package age", async () => {
 
     for (const v of versions) {
       const prefix = v.namePrefix || packageName;
+      const provenance = v.provenance !== undefined ? v.provenance : null;
       versionList.push(v.version);
       files.push({
         filename: `${prefix}-${v.version}-py3-none-any.whl`,
         url: `/packages/${prefix}-${v.version}-py3-none-any.whl`,
         "upload-time": v.uploadTime,
+        provenance,
       });
       files.push({
         filename: `${prefix}-${v.version}.tar.gz`,
         url: `/packages/${prefix}-${v.version}.tar.gz`,
         "upload-time": v.uploadTime,
+        provenance,
       });
     }
 

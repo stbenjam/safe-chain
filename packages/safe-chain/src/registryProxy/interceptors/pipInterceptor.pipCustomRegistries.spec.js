@@ -12,6 +12,8 @@ describe("pipInterceptor custom registries", async () => {
       skipMinimumPackageAge: () => true,
       getMinimumPackageAgeHours: () => 24,
       getPipMinimumPackageAgeExclusions: () => [],
+      getPipProvenanceMode: () => "off",
+      getPipProvenanceExclusions: () => [],
       getLoggingLevel: () => "default",
       LOGGING_SILENT: "silent",
       LOGGING_VERBOSE: "verbose",

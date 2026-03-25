@@ -1,4 +1,4 @@
-import { getMinimumPackageAgeHours, getPipMinimumPackageAgeExclusions } from "../../../config/settings.js";
+import { getMinimumPackageAgeHours, getPipMinimumPackageAgeExclusions, getPipProvenanceExclusions, getPipProvenanceMode } from "../../../config/settings.js";
 import { ui } from "../../../environment/userInteraction.js";
 import { getHeaderValueAsString } from "../../http-utils.js";
 import { parsePipFilename } from "./parsePipFilename.js";
@@ -105,7 +105,9 @@ export function modifyPipInfoResponse(body, headers, url) {
 
     const originalLength = json.files.length;
 
-    json.files = json.files.filter((/** @type {{ filename: string, "upload-time"?: string }} */ file) => {
+    /** @typedef {{ filename: string, "upload-time"?: string, provenance?: string | null }} SimpleApiFile */
+
+    json.files = json.files.filter((/** @type {SimpleApiFile} */ file) => {
       const uploadTime = file["upload-time"];
       if (uploadTime && new Date(uploadTime) > cutOff) {
         state.hasSuppressedVersions = true;
@@ -117,6 +119,14 @@ export function modifyPipInfoResponse(body, headers, url) {
       }
       return true;
     });
+
+    // Apply provenance filtering after age filtering. Note: in "default" mode,
+    // hasAnyProvenance is evaluated on age-filtered files only — if a project
+    // adopted trusted publishing recently, those new releases may be removed by
+    // the age filter, leaving only older files without provenance. This is
+    // intentionally conservative: we don't block files that predate the project's
+    // adoption of trusted publishing.
+    json.files = filterByProvenance(json.files, packageName);
 
     if (json.files.length === originalLength) {
       return body;
@@ -156,6 +166,55 @@ export function modifyPipInfoResponse(body, headers, url) {
  */
 export function getHasSuppressedVersions() {
   return state.hasSuppressedVersions;
+}
+
+/**
+ * Filters files based on provenance (trusted publishing) mode.
+ *
+ * - "off": no filtering
+ * - "strict": remove all files without provenance
+ * - "default": if any file in the response has provenance, remove files without it
+ *
+ * @param {Array<{ filename: string, provenance?: string | null }>} files
+ * @param {string} packageName
+ * @returns {Array<{ filename: string, provenance?: string | null }>}
+ */
+function filterByProvenance(files, packageName) {
+  const mode = getPipProvenanceMode();
+
+  if (mode === "off") {
+    return files;
+  }
+
+  const exclusions = getPipProvenanceExclusions();
+  if (exclusions.some((pattern) => matchesExclusionPattern(packageName, pattern))) {
+    ui.writeVerbose(
+      `Safe-chain: ${packageName} is excluded from provenance filtering (pip provenanceExclusions setting).`
+    );
+    return files;
+  }
+
+  const hasAnyProvenance = files.some((f) => !!f.provenance);
+
+  if (mode === "default" && !hasAnyProvenance) {
+    return files;
+  }
+
+  // In "strict" mode, always filter. In "default" mode, filter only if the
+  // project has previously published with provenance.
+  const filtered = files.filter((file) => {
+    if (file.provenance) {
+      return true;
+    }
+    state.hasSuppressedVersions = true;
+    const version = parsePipFilename(file.filename).version;
+    ui.writeVerbose(
+      `Safe-chain: ${packageName}==${version || "unknown"} was removed because it lacks trusted publishing provenance (pip provenanceMode=${mode}).`
+    );
+    return false;
+  });
+
+  return filtered;
 }
 
 /**
